@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using HandyControl.Controls;
+using System.Net.Http.Headers;
 
 namespace MFAWPF.Utils;
 
@@ -93,7 +94,11 @@ public class VersionChecker
             return string.Empty;
         using HttpClient client = new HttpClient();
         client.DefaultRequestHeaders.UserAgent.TryParseAdd("request");
-
+        client.DefaultRequestHeaders.Accept.TryParseAdd("application/json");
+        var authHeader = new AuthenticationHeaderValue("Bearer", "");
+        var schemeField = typeof(AuthenticationHeaderValue).GetField("_scheme", BindingFlags.Instance | BindingFlags.NonPublic);
+        schemeField.SetValue(authHeader, "");
+        client.DefaultRequestHeaders.Authorization = authHeader;
         try
         {
             HttpResponseMessage response = await client.GetAsync(url);
@@ -125,8 +130,14 @@ public class VersionChecker
         string url = $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
 
         using HttpClient client = new HttpClient();
+        
         client.DefaultRequestHeaders.UserAgent.TryParseAdd("request");
+        client.DefaultRequestHeaders.Accept.TryParseAdd("application/json");
 
+        var authHeader = new AuthenticationHeaderValue("Bearer", "");
+        var schemeField = typeof(AuthenticationHeaderValue).GetField("_scheme", BindingFlags.Instance | BindingFlags.NonPublic);
+        schemeField.SetValue(authHeader, "");
+        client.DefaultRequestHeaders.Authorization = authHeader;
         try
         {
             HttpResponseMessage response = await client.GetAsync(url);
@@ -138,19 +149,16 @@ public class VersionChecker
         }
         catch (HttpRequestException e) when (e.Message.Contains("403"))
         {
-            Console.WriteLine("GitHub API速率限制已超出，请稍后再试。");
             LoggerService.LogError("GitHub API速率限制已超出，请稍后再试。");
             throw new Exception("GitHub API速率限制已超出，请稍后再试。");
         }
         catch (HttpRequestException e)
         {
-            Console.WriteLine($"请求GitHub时发生错误: {e.Message}");
             LoggerService.LogError($"请求GitHub时发生错误: {e.Message}");
             throw new Exception("请求GitHub时发生错误。");
         }
         catch (Exception e)
         {
-            Console.WriteLine($"处理GitHub响应时发生错误: {e.Message}");
             LoggerService.LogError($"处理GitHub响应时发生错误: {e.Message}");
             throw new Exception("处理GitHub响应时发生错误。");
         }
