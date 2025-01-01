@@ -18,15 +18,21 @@ using MFAWPF.Data;
 using MFAWPF.Utils.Converters;
 using MFAWPF.ViewModels;
 using MFAWPF.Views;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CSharp;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Security.Cryptography;
 using System.Security.Policy;
 using System;
+using System.CodeDom.Compiler;
 using System.Runtime.Intrinsics.Arm;
 using System.Collections;
 using System.Net;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Web;
 
 namespace MFAWPF.Utils;
@@ -45,7 +51,7 @@ public class MaaProcessor
 
     private MaaTasker? _currentTasker;
 
-    public static string Resource => AppDomain.CurrentDomain.BaseDirectory + "Resource";
+    public static string Resource => AppContext.BaseDirectory + "Resource";
     public static string ModelResource => $"{Resource}/model/";
     public static string ResourceBase => $"{Resource}/base";
     public static string ResourcePipelineFilePath => $"{ResourceBase}/pipeline/";
@@ -80,19 +86,20 @@ public class MaaProcessor
     private DateTime? _startTime;
 
 
-    public void Start(List<DragItemViewModel>? tasks)
+    public void Start(List<DragItemViewModel>? tasks, bool onlyStart = false)
     {
         SetCurrentTasker();
         MainWindow.Data?.SetIdle(false);
-        TaskQueue.Push(new MFATask
-        {
-            Name = "启动脚本",
-            Type = MFATask.MFATaskType.MFA,
-            Action = () =>
+        if (!onlyStart)
+            TaskQueue.Push(new MFATask
             {
-                MainWindow.Instance.RunScript();
-            }
-        });
+                Name = "启动脚本",
+                Type = MFATask.MFATaskType.MFA,
+                Action = () =>
+                {
+                    MainWindow.Instance.RunScript();
+                }
+            });
 
         _startTime = DateTime.Now;
         IsStopped = false;
@@ -100,62 +107,65 @@ public class MaaProcessor
         var taskAndParams = tasks.Select(CreateTaskAndParam).ToList();
         _cancellationTokenSource = new CancellationTokenSource();
         var token = _cancellationTokenSource.Token;
-        TaskQueue.Push(new MFATask
-        {
-            Name = "计时",
-            Type = MFATask.MFATaskType.MFA,
-            Action = () =>
-            {
-                MainWindow.AddLogByKey("ConnectingTo", null, (MainWindow.Data?.IsAdb).IsTrue()
-                    ? "Emulator"
-                    : "Window");
-                var instance = Task.Run(GetCurrentTasker, token);
-                instance.Wait();
-                if (instance.Result == null || !instance.Result.Initialized)
-                {
-                    Growls.ErrorGlobal("InitInstanceFailed".GetLocalizationString());
-                    LoggerService.LogWarning("InitControllerFailed".GetLocalizationString());
-                    MainWindow.AddLogByKey("InstanceInitFailedLog");
-                    Stop();
-                    throw new Exception();
-                }
-                if (!Config.IsConnected)
-                {
-                    Growls.Warning("Warning_CannotConnect".GetLocalizationString()
-                        .FormatWith((MainWindow.Data?.IsAdb).IsTrue()
-                            ? "Emulator".GetLocalizationString()
-                            : "Window".GetLocalizationString()));
-                    throw new Exception();
-                }
-            }
-        });
-
-        TaskQueue.Push(new MFATask
-        {
-            Name = "计时",
-            Type = MFATask.MFATaskType.MFA,
-            Action = () =>
-            {
-                MeasureExecutionTime(() => _currentTasker?.Controller.Screencap().Wait());
-            }
-        });
-
-
-        foreach (var task in taskAndParams)
+        if (!onlyStart)
             TaskQueue.Push(new MFATask
             {
-                Name = task.Name,
-                Type = MFATask.MFATaskType.MAAFW,
-                Count = task.Count ?? 1,
-                Action = () => { TryRunTasks(_currentTasker, task.Entry, task.Param); },
+                Name = "计时",
+                Type = MFATask.MFATaskType.MFA,
+                Action = () =>
+                {
+                    MainWindow.AddLogByKey("ConnectingTo", null, (MainWindow.Data?.IsAdb).IsTrue()
+                        ? "Emulator"
+                        : "Window");
+                    var instance = Task.Run(GetCurrentTasker, token);
+                    instance.Wait();
+                    if (instance.Result == null || !instance.Result.Initialized)
+                    {
+                        Growls.Error("InitInstanceFailed".GetLocalizationString());
+                        LoggerService.LogWarning("InitControllerFailed".GetLocalizationString());
+                        MainWindow.AddLogByKey("InstanceInitFailedLog");
+                        Stop();
+                        throw new Exception();
+                    }
+                    if (!MainWindow.Instance.IsConnected())
+                    {
+                        Growls.Warning("Warning_CannotConnect".GetLocalizationString()
+                            .FormatWith((MainWindow.Data?.IsAdb).IsTrue()
+                                ? "Emulator".GetLocalizationString()
+                                : "Window".GetLocalizationString()));
+                        throw new Exception();
+                    }
+                }
+            });
+        if (!onlyStart)
+            TaskQueue.Push(new MFATask
+            {
+                Name = "计时",
+                Type = MFATask.MFATaskType.MFA,
+                Action = () =>
+                {
+                    MeasureExecutionTime(() => _currentTasker?.Controller.Screencap().Wait());
+                }
             });
 
-        TaskQueue.Push(new MFATask
+        if (!onlyStart)
         {
-            Name = "结束",
-            Type = MFATask.MFATaskType.MAAFW,
-            Action = () => { MainWindow.Instance?.RunScript("Post-script"); }
-        });
+            foreach (var task in taskAndParams)
+                TaskQueue.Push(new MFATask
+                {
+                    Name = task.Name,
+                    Type = MFATask.MFATaskType.MAAFW,
+                    Count = task.Count ?? 1,
+                    Action = () => { TryRunTasks(_currentTasker, task.Entry, task.Param); },
+                });
+        }
+        if (!onlyStart)
+            TaskQueue.Push(new MFATask
+            {
+                Name = "结束",
+                Type = MFATask.MFATaskType.MFA,
+                Action = () => { MainWindow.Instance?.RunScript("Post-script"); }
+            });
 
         TaskManager.RunTaskAsync(async () =>
         {
@@ -188,7 +198,7 @@ public class MaaProcessor
                 }
                 else
                 {
-                    Growls.ErrorGlobal("StoppingFailed".GetLocalizationString());
+                    Growls.Error("StoppingFailed".GetLocalizationString());
                 }
             }, null, "停止任务");
             TaskQueue.Clear();
@@ -269,7 +279,7 @@ public class MaaProcessor
                 Process.Start(exePath);
         }
 
-        for (double remainingTime = waitTimeInSeconds; remainingTime > 0; remainingTime -= 1)
+        for (double remainingTime = waitTimeInSeconds + 1; remainingTime > 0; remainingTime -= 1)
         {
             if (token.IsCancellationRequested)
             {
@@ -278,7 +288,12 @@ public class MaaProcessor
 
             if (remainingTime % 10 == 0)
             {
-                MainWindow.AddLogByKey("WaitSoftwareTime", null, remainingTime.ToString());
+                MainWindow.AddLogByKey("WaitSoftwareTime", null,
+                    (MainWindow.Data?.IsAdb).IsTrue()
+                        ? "Emulator"
+                        : "Window",
+                    remainingTime.ToString()
+                );
             }
 
             try
@@ -316,68 +331,100 @@ public class MaaProcessor
 
     private void CloseSoftware()
     {
-        if (_softwareProcess != null)
+        if (_softwareProcess is { HasExited: false })
+        {
+            _softwareProcess = null;
+        }
+        if (_softwareProcess is { HasExited: true })
         {
             _softwareProcess.Kill();
             _softwareProcess = null;
         }
         else
         {
-            var softwarePath = DataSet.GetData("SoftwarePath", string.Empty);
-
-            if (!string.IsNullOrEmpty(softwarePath) && (MainWindow.Data?.IsAdb).IsTrue())
+            if ((MainWindow.Data?.IsAdb).IsTrue())
+                EmulatorHelper.KillEmulatorModeSwitcher();
+            else
             {
-                string processName = Path.GetFileNameWithoutExtension(softwarePath);
-                var emulatorConfig = DataSet.GetData("EmulatorConfig", string.Empty);
-
-                var processes = Process.GetProcessesByName(processName);
-                foreach (var process in processes)
+                if (!string.IsNullOrWhiteSpace(Config.DesktopWindow.Name))
                 {
-                    var commandLine = GetCommandLine(process);
-                    if (string.IsNullOrEmpty(emulatorConfig) || MainWindow.ExtractNumberFromEmulatorConfig(emulatorConfig) == 0 && commandLine.Split(" ").Length == 1 || commandLine.ToLower().Contains(emulatorConfig.ToLower()))
+                    var emulatorConfig = DataSet.GetData("EmulatorConfig", string.Empty);
+                    var processes = Process.GetProcesses().Where(p =>
+                        p.ProcessName.StartsWith(Config.DesktopWindow.Name));
+                    foreach (var process in processes)
                     {
-                        process.Kill();
-                        break;
-                    }
-                }
-            }
-            else if (!string.IsNullOrEmpty(Config.AdbDevice.Name) && (MainWindow.Data?.IsAdb).IsTrue())
-            {
-                var windowName = Config.AdbDevice.Name;
-                if (windowName.Contains("MuMu"))
-                    windowName = "MuMuPlayer";
-                else if (windowName.Contains("Nox"))
-                    windowName = "Nox";
-                else if (windowName.Contains("LDPlayer"))
-                    windowName = "LDPlayer";
-                else if (windowName.Contains("XYAZ"))
-                    windowName = "MEmu";
-                else if (windowName.Contains("BlueStacks"))
-                    windowName = "HD-Player";
-
-                var emulatorConfig = DataSet.GetData("EmulatorConfig", string.Empty);
-
-                var processes = Process.GetProcesses().Where(p =>
-                    p.ProcessName.StartsWith(windowName));
-
-                foreach (var process in processes)
-                {
-                    try
-                    {
-                        var commandLine = GetCommandLine(process);
-
-                        if (string.IsNullOrEmpty(emulatorConfig) || commandLine.ToLower().Contains(emulatorConfig.ToLower()))
+                        try
                         {
-                            process.Kill();
-                            break;
+                            var commandLine = GetCommandLine(process);
+
+                            if (string.IsNullOrEmpty(emulatorConfig) || commandLine.ToLower().Contains(emulatorConfig.ToLower()))
+                            {
+                                process.Kill();
+                                break;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"关闭进程时出错: {ex.Message}");
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"关闭进程时出错: {ex.Message}");
-                    }
                 }
             }
+            // var softwarePath = DataSet.GetData("SoftwarePath", string.Empty);
+            //
+            // if (!string.IsNullOrEmpty(softwarePath) && (MainWindow.Data?.IsAdb).IsTrue())
+            // {
+            //     string processName = Path.GetFileNameWithoutExtension(softwarePath);
+            //     var emulatorConfig = DataSet.GetData("EmulatorConfig", string.Empty);
+            //
+            //     var processes = Process.GetProcessesByName(processName);
+            //     foreach (var process in processes)
+            //     {
+            //         var commandLine = GetCommandLine(process);
+            //         if (string.IsNullOrEmpty(emulatorConfig) || MainWindow.ExtractNumberFromEmulatorConfig(emulatorConfig) == 0 && commandLine.Split(" ").Length == 1 || commandLine.ToLower().Contains(emulatorConfig.ToLower()))
+            //         {
+            //             process.Kill();
+            //             break;
+            //         }
+            //     }
+            // }
+            // else if (!string.IsNullOrEmpty(Config.AdbDevice.Name) && (MainWindow.Data?.IsAdb).IsTrue())
+            // {
+            //     var windowName = Config.AdbDevice.Name;
+            //     if (windowName.Contains("MuMu"))
+            //         windowName = "MuMuPlayer";
+            //     else if (windowName.Contains("Nox"))
+            //         windowName = "Nox";
+            //     else if (windowName.Contains("LDPlayer"))
+            //         windowName = "LDPlayer";
+            //     else if (windowName.Contains("XYAZ"))
+            //         windowName = "MEmu";
+            //     else if (windowName.Contains("BlueStacks"))
+            //         windowName = "HD-Player";
+            //
+            //     var emulatorConfig = DataSet.GetData("EmulatorConfig", string.Empty);
+            //
+            //     var processes = Process.GetProcesses().Where(p =>
+            //         p.ProcessName.StartsWith(windowName));
+            //
+            //     foreach (var process in processes)
+            //     {
+            //         try
+            //         {
+            //             var commandLine = GetCommandLine(process);
+            //
+            //             if (string.IsNullOrEmpty(emulatorConfig) || commandLine.ToLower().Contains(emulatorConfig.ToLower()))
+            //             {
+            //                 process.Kill();
+            //                 break;
+            //             }
+            //         }
+            //         catch (Exception ex)
+            //         {
+            //             Console.WriteLine($"关闭进程时出错: {ex.Message}");
+            //         }
+            //     }
+            // }
         }
     }
 
@@ -584,8 +631,23 @@ public class MaaProcessor
         stopwatch.Stop();
         long elapsedMilliseconds = stopwatch.ElapsedMilliseconds;
 
-        MainWindow.AddLogByKey("ScreenshotTime", null, elapsedMilliseconds.ToString(),
-            MainWindow.Instance?.ScreenshotType() ?? string.Empty);
+        switch (elapsedMilliseconds)
+        {
+            case >= 800:
+                MainWindow.AddLogByKey("ToScreencapErrorTip", new BrushConverter().ConvertFromString("DarkGoldenrod") as Brush, elapsedMilliseconds.ToString(),
+                    MainWindow.Instance.ScreenshotType());
+                break;
+
+            case >= 400:
+                MainWindow.AddLogByKey("ScreencapWarningTip", new BrushConverter().ConvertFromString("DarkGoldenrod") as Brush, elapsedMilliseconds.ToString(),
+                    MainWindow.Instance.ScreenshotType());
+                break;
+
+            default:
+                MainWindow.AddLogByKey("ScreencapCost", null, elapsedMilliseconds.ToString(),
+                    MainWindow.Instance.ScreenshotType());
+                break;
+        }
     }
 
     static async Task MeasureExecutionTimeAsync(Func<Task> methodToMeasure)
@@ -596,9 +658,24 @@ public class MaaProcessor
 
         stopwatch.Stop();
         long elapsedMilliseconds = stopwatch.ElapsedMilliseconds;
+        switch (elapsedMilliseconds)
+        {
+            case >= 800:
+                MainWindow.AddLogByKey("ToScreencapErrorTip", new BrushConverter().ConvertFromString("DarkGoldenrod") as Brush, elapsedMilliseconds.ToString(),
+                    MainWindow.Instance.ScreenshotType());
+                break;
 
-        MainWindow.AddLogByKey("ScreenshotTime", null, elapsedMilliseconds.ToString(),
-            MainWindow.Instance?.ScreenshotType() ?? string.Empty);
+            case >= 400:
+                MainWindow.AddLogByKey("ScreencapWarningTip", new BrushConverter().ConvertFromString("DarkGoldenrod") as Brush, elapsedMilliseconds.ToString(),
+                    MainWindow.Instance.ScreenshotType());
+                break;
+
+            default:
+                MainWindow.AddLogByKey("ScreencapCost", null, elapsedMilliseconds.ToString(),
+                    MainWindow.Instance.ScreenshotType() );
+                break;
+        }
+
     }
 
     private async Task<bool> ExecuteTasks(CancellationToken token)
@@ -611,7 +688,6 @@ public class MaaProcessor
             if (!task.Run())
             {
                 if (IsStopped) return false;
-                break;
             }
 
             OnTaskQueueChanged();
@@ -633,7 +709,7 @@ public class MaaProcessor
             Growl.Info("TaskCompleted".GetLocalizationString());
             if (_startTime != null)
             {
-                TimeSpan elapsedTime = DateTime.Now - (DateTime)_startTime;
+                var elapsedTime = DateTime.Now - (DateTime)_startTime;
                 MainWindow.AddLogByKey("TaskAllCompletedWithTime", null, ((int)elapsedTime.TotalHours).ToString(),
                     ((int)elapsedTime.TotalMinutes % 60).ToString(), ((int)elapsedTime.TotalSeconds % 60).ToString());
             }
@@ -648,7 +724,7 @@ public class MaaProcessor
         _startTime = null;
     }
 
-    public virtual void OnTaskQueueChanged()
+    public void OnTaskQueueChanged()
     {
         TaskStackChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -774,7 +850,10 @@ public class MaaProcessor
             };
             RegisterCustomRecognitionsAndActions(tasker);
             if (!DataSet.GetData("EnableGPU", true))
+            {
                 tasker.Resource.SetOptionInferenceDevice(InferenceDevice.CPU);
+                LoggerService.LogInfo("已禁用GPU加速！");
+            }
             tasker.Utility.SetOptionSaveDraw(DataSet.GetData("EnableSaveDraw", false));
             return tasker;
         }
@@ -821,127 +900,206 @@ public class MaaProcessor
                 Config.DesktopWindow.Check);
     }
 
-    // public static IEnumerable<object> LoadAndInstantiateCustomClasses(string directory, string[] interfacesToImplement)
-    // {
-    //     var customClasses = new List<object>();
-    //     var csFiles = Directory.GetFiles(directory, "*.cs");
-    //
-    //     foreach (var filePath in csFiles)
-    //     {
-    //         // 读取.cs文件内容
-    //         string code = File.ReadAllText(filePath);
-    //
-    //         // 使用Roslyn编译代码
-    //         var syntaxTree = CSharpSyntaxTree.ParseText(code);
-    //         var compilation = CSharpCompilation.Create("DynamicAssembly")
-    //             .WithOptions(new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary))
-    //             .AddSyntaxTrees(syntaxTree)
-    //             .AddReferences(
-    //                 MetadataReference.CreateFromFile(typeof(object).Assembly.Location));
-    //         foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
-    //         {
-    //             if (!string.IsNullOrEmpty(assembly.Location))
-    //             {
-    //                 compilation.AddReferences(MetadataReference.CreateFromFile(assembly.Location));
-    //                 Console.WriteLine(assembly.FullName + ":"+ assembly.Location);
-    //             }
-    //         }
-    //         using (var ms = new MemoryStream())
-    //         {
-    //             EmitResult result = compilation.Emit(ms);
-    //             if (!result.Success)
-    //             {
-    //                 var failures = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error);
-    //                 foreach (var diagnostic in failures)
-    //                 {
-    //                     Console.WriteLine($"{diagnostic.Id}: {diagnostic.GetMessage()}");
-    //                 }
-    //                 continue;
-    //             }
-    //
-    //             ms.Seek(0, SeekOrigin.Begin);
-    //             var assembly = Assembly.Load(ms.ToArray());
-    //
-    //             // 查找实现了指定接口的类
-    //             foreach (var type in assembly.GetTypes())
-    //             {
-    //                 foreach (var iface in interfacesToImplement)
-    //                 {
-    //                     if (type.GetInterfaces().Any(i => i.Name == iface))
-    //                     {
-    //                         customClasses.Add(Activator.CreateInstance(type));
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    //
-    //     return customClasses;
-    // }
+    static List<MetadataReference>? MetadataReferences;
+
+    static List<MetadataReference> GetMetadataReferences()
+    {
+        if (MetadataReferences == null)
+        {
+            var domainAssemblys = AppDomain.CurrentDomain.GetAssemblies();
+            MetadataReferences = new List<MetadataReference>();
+
+            foreach (var assembly in domainAssemblys)
+            {
+                if (!assembly.IsDynamic)
+                {
+                    unsafe
+                    {
+                        assembly.TryGetRawMetadata(out byte* blob, out int length);
+                        var moduleMetadata = ModuleMetadata.CreateFromMetadata((IntPtr)blob, length);
+                        var assemblyMetadata = AssemblyMetadata.Create(moduleMetadata);
+                        var metadataReference = assemblyMetadata.GetReference();
+                        MetadataReferences.Add(metadataReference);
+                    }
+                }
+            }
+
+            unsafe
+            {
+                typeof(System.Linq.Expressions.Expression).Assembly.TryGetRawMetadata(out byte* blob, out int length);
+                MetadataReferences.Add(AssemblyMetadata.Create(ModuleMetadata.CreateFromMetadata((IntPtr)blob, length)).GetReference());
+            }
+        }
+        return MetadataReferences;
+    }
+
+    public static IEnumerable<CustomValue<object>> LoadAndInstantiateCustomClasses(string directory, string[] interfacesToImplement)
+    {
+        var customClasses = new List<CustomValue<object>>();
+        if (Path.Exists(directory))
+        {
+            var csFiles = Directory.GetFiles(directory, "*.cs");
+
+            var references = GetMetadataReferences();
+
+            foreach (var filePath in csFiles)
+            {
+                var name = Path.GetFileNameWithoutExtension(filePath);
+                LoggerService.LogInfo("Trying to parse " + name);
+                string code = File.ReadAllText(filePath);
+
+                var syntaxTree = CSharpSyntaxTree.ParseText(code);
+                var compilation = CSharpCompilation.Create("DynamicAssembly")
+                    .WithOptions(new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary))
+                    .AddSyntaxTrees(syntaxTree)
+                    .AddReferences(references);
+
+                using (var ms = new MemoryStream())
+                {
+                    EmitResult result = compilation.Emit(ms);
+                    if (!result.Success)
+                    {
+                        var failures = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error);
+                        foreach (var diagnostic in failures)
+                        {
+                            LoggerService.LogError($"{diagnostic.Id}: {diagnostic.GetMessage()}");
+                        }
+                        continue;
+                    }
+
+                    ms.Seek(0, SeekOrigin.Begin);
+                    var assembly = Assembly.Load(ms.ToArray());
+
+                    foreach (var type in assembly.GetTypes())
+                    {
+                        foreach (var iface in interfacesToImplement)
+                        {
+                            if (type.GetInterfaces().Any(i => i.Name == iface))
+                            {
+                                var instance = Activator.CreateInstance(type);
+                                if (instance != null)
+                                    customClasses.Add(new CustomValue<object>(name, instance));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return customClasses;
+    }
+
     private void RegisterCustomRecognitionsAndActions(MaaTasker instance)
     {
         if (MaaInterface.Instance == null) return;
         LoggerService.LogInfo("RegisteringCustomRecognizer".GetLocalizationString());
+        LoggerService.LogInfo("RegisteringCustomAction".GetLocalizationString());
+        // instance.Resource.Register(new MoneyDetectRecognition());
+        // instance.Resource.Register(new MoneyRecognition());
+        var customClasses = LoadAndInstantiateCustomClasses($"{Resource}/custom", [
+            "IMaaCustomRecognition",
+            "IMaaCustomAction",
+        ]);
 
-        instance.Resource.Register(new MoneyDetectRecognition());
-        instance.Resource.Register(new MoneyRecognition());
-        // var customClasses = LoadAndInstantiateCustomClasses($"{Resource}/custom", new[]
-        // {
-        //     "IMaaCustomRecognition",
-        //     "IMaaCustomAction"
-        // });
-        // foreach (var customClass in customClasses)
-        // {
-        //     if (customClass is IMaaCustomRecognition recognition)
-        //     {
-        //         instance.Resource.Register(recognition);
-        //
-        //     }
-        //     else if (customClass is IMaaCustomAction action)
-        //     {
-        //         instance.Resource.Register(action);
-        //     }
-        //     LoggerService.LogInfo("Registering " + nameof(customClass));
-        //
-        // }
+        foreach (var customClass in customClasses)
+        {
+            if (customClass.Value is IMaaCustomRecognition recognition)
+            {
+                instance.Resource.Register(recognition);
+                LoggerService.LogInfo("Registering IMaaCustomRecognition " + customClass.Name);
+            }
+            else if (customClass.Value is IMaaCustomAction action)
+            {
+                instance.Resource.Register(action);
+                LoggerService.LogInfo("Registering IMaaCustomAction " + customClass.Name);
+            }
+        }
         instance.Callback += (_, args) =>
         {
             var jObject = JObject.Parse(args.Details);
             var name = jObject["name"]?.ToString() ?? string.Empty;
-            if (args.Message.Equals(MaaMsg.Task.Action.Succeeded))
+            if (args.Message.StartsWith(MaaMsg.Task.Action.Prefix))
             {
-                if (MainWindow.Instance?.TaskDictionary.TryGetValue(name, out var taskModel) == true)
+                if (MainWindow.Instance.TaskDictionary.TryGetValue(name, out var taskModel))
                 {
-                    DisplayFocusTip(taskModel);
+                    DisplayFocus(taskModel, args.Message);
                 }
             }
         };
     }
 
-    private void DisplayFocusTip(TaskModel taskModel)
+    private void DisplayFocus(TaskModel taskModel, string message)
     {
         var converter = new BrushConverter();
-
-        if (taskModel.FocusTip != null)
+        switch (message)
         {
-            for (int i = 0; i < taskModel.FocusTip.Count; i++)
-            {
-                Brush? brush = null;
-                var tip = taskModel.FocusTip[i];
-                try
+            case MaaMsg.Task.Action.Succeeded:
+                if (taskModel.FocusSucceeded != null)
                 {
-                    if (taskModel.FocusTipColor != null && taskModel.FocusTipColor.Count > i)
-                        brush = converter.ConvertFromString(taskModel.FocusTipColor[i]) as Brush;
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                    LoggerService.LogError(e);
-                }
+                    for (int i = 0; i < taskModel.FocusSucceeded.Count; i++)
+                    {
+                        Brush? brush = null;
+                        var tip = taskModel.FocusSucceeded[i];
+                        try
+                        {
+                            if (taskModel.FocusSucceededColor != null && taskModel.FocusSucceededColor.Count > i)
+                                brush = converter.ConvertFromString(taskModel.FocusSucceededColor[i]) as Brush;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            LoggerService.LogError(e);
+                        }
 
-                MainWindow.AddLog(HandleStringsWithVariables(tip), brush);
-            }
+                        MainWindow.AddLog(HandleStringsWithVariables(tip), brush);
+                    }
+                }
+                break;
+            case MaaMsg.Task.Action.Failed:
+                if (taskModel.FocusFailed != null)
+                {
+                    for (int i = 0; i < taskModel.FocusFailed.Count; i++)
+                    {
+                        Brush? brush = null;
+                        var tip = taskModel.FocusFailed[i];
+                        try
+                        {
+                            if (taskModel.FocusFailedColor != null && taskModel.FocusFailedColor.Count > i)
+                                brush = converter.ConvertFromString(taskModel.FocusFailedColor[i]) as Brush;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            LoggerService.LogError(e);
+                        }
+
+                        MainWindow.AddLog(HandleStringsWithVariables(tip), brush);
+                    }
+                }
+                break;
+            case MaaMsg.Task.Action.Starting:
+                if (taskModel.FocusTip != null)
+                {
+                    for (int i = 0; i < taskModel.FocusTip.Count; i++)
+                    {
+                        Brush? brush = null;
+                        var tip = taskModel.FocusTip[i];
+                        try
+                        {
+                            if (taskModel.FocusTipColor != null && taskModel.FocusTipColor.Count > i)
+                                brush = converter.ConvertFromString(taskModel.FocusTipColor[i]) as Brush;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            LoggerService.LogError(e);
+                        }
+
+                        MainWindow.AddLog(HandleStringsWithVariables(tip), brush);
+                    }
+                }
+                break;
         }
+
     }
 
     private void HandleInitializationError(Exception e,
@@ -954,7 +1112,7 @@ public class MaaProcessor
         OnTaskQueueChanged();
         if (MainWindow.Data != null)
             MainWindow.Data.Idle = true;
-        Growls.ErrorGlobal(message);
+        Growls.Error(message);
         if (hasWarning)
             LoggerService.LogWarning(waringMessage);
         LoggerService.LogError(e.ToString());
@@ -968,7 +1126,7 @@ public class MaaProcessor
         var encodedDataHandle = buffer.GetEncodedData(out var size);
         if (encodedDataHandle == IntPtr.Zero)
         {
-            Growls.ErrorGlobal("Handle为空！");
+            Growls.Error("Handle为空！");
             return null;
         }
 

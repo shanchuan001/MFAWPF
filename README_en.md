@@ -118,16 +118,25 @@ Modify it as follows:
 - The built-in MFATools can be used to crop images and obtain ROIs.
 - Some areas are not fully developed yet, and contributions are welcome.
 - Note that `MaaFramework`  removed Exec Agent in version 2.0, so it's currently not possible to register Custom Actions and Custom Recognitions via interface registration.
+- `MFAWPF` added the function of dynamically registering Custom Action and Custom Recognition in version 1.2.3.3. Currently, only C# is supported. The corresponding.cs files need to be placed in the custom directory of the Resource directory. Refer to [Document](./docs/en_us/CustomRecognition_Action.md)
 - Placing `logo.ico` in the same directory as the exe file will replace the window icon.
-
+- `MFAWPF` adds multi-language support for interfaces. After creating `zh-cn.json`,`zh-tw.json` and `en-us.json` in the same directory as `interface.json`, the names of docs and tasks and the names of options can be represented by keys. MFAWPF will automatically read the values corresponding to the keys in the files according to the language. If not, it defaults to the key.
 **Note: In MFA, two new fields have been added to the task in the Pipeline, namely `focus_tip` and `focus_tip_color`.**
 
-- `focus` : *bool*  
-  Whether to enable `focus_tip`. Optional, default is false.
-- `focus_tip` : *string* | *list<string, >*  
-  When executing a task, this is the content output on the right-side log in MFA. Optional, default is empty.
-- `focus_tip_color` : *string* | *list<string, >*  
-  The color of the content output when executing a task. Optional, default is Gray.
+- `focus`: *bool*
+  Whether to enable `focus_tip` `focus_succeeded` `focus_failed`. Optional, default is false.
+- `focus_tip`: *string* | *list<string, >*
+  The content output in the MFA right-side log before executing a certain task. Optional, default is empty.
+- `focus_tip_color`: *string* | *list<string, >*
+  The color of the content output in the MFA right-side log before executing a certain task. Optional, default is Gray.
+- `focus_succeeded`: *string* | *list<string, >*
+  The content output in the MFA right-side log after a certain task is successfully executed. Optional, default is empty.
+- `focus_succeeded_color`: *string* | *list<string, >*
+  The color of the content output in the MFA right-side log after a certain task is successfully executed. Optional, default is Gray.
+- `focus_failed`: *string* | *list<string, >*
+  The content output in the MFA right-side log when a certain task fails. Optional, default is empty.
+- `focus_failed_color`: *string* | *list<string, >*
+  The color of the content output in the MFA right-side log when a certain task fails. Optional, default is Gray.
 
 ## Acknowledgments
 
@@ -136,7 +145,7 @@ Modify it as follows:
 - [MaaFramework](https://github.com/MaaAssistantArknights/MaaFramework)：Automation testing framework
 - [MaaFramework.Binding.CSharp](https://github.com/MaaXYZ/MaaFramework.Binding.CSharp)：The csharp binding of MaaFramework
 - [HandyControls](https://github.com/ghost1372/HandyControls)：WPF control library
-- [NLog](https://github.com/NLog/NLog)：C# logging library
+- [Serilog](https://github.com/serilog/serilog)：C# logging library
 - [Newtonsoft.Json](https://github.com/CommunityToolkit/dotnet)：C# JSON library
 
 ## Roadmap

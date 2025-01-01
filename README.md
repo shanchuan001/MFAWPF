@@ -119,18 +119,26 @@
 - 内置 MFATools 可以用来裁剪图片和获取 ROI
 - 目前一些地方并没有特别完善,欢迎各位大佬贡献代码
 - 注意，由于 `MaaFramework` 于 2.0 移除了Exec Agent，所以目前无法通过注册interface注册Custom Action和Custom Recognition
+- `MFAWPF` 于v1.2.3.3加入动态注册Custom Action和Custom Recognition的功能，目前只支持C#,需要在Resource目录的custom下放置相应的.cs文件, 参考 [文档](./docs/zh_cn/自定义识别_操作.md)
 - 在exe同级目录中放置 `logo.ico` 后可以替换窗口的图标
-- MFAWPF新增interface多语言支持,在interface.json同目录下新建zh-cn.json和en-us.json后，doc和任务的name和选项的name可以使用key来指代。MFAWPF会自动根据语言来读取文件的key对应的value。如果没有则默认为key
+- `MFAWPF` 新增interface多语言支持,在`interface.json`同目录下新建`zh-cn.json`,`zh-tw.json`和`en-us.json`后，doc和任务的name和选项的name可以使用key来指代。MFAWPF会自动根据语言来读取文件的key对应的value。如果没有则默认为key
 
 **注：在MFA中，于Pipeline中任务新增了俩个属性字段，分别为 `focus_tip` 和 `focus_tip_color`。**
 
 - `focus` : *bool*  
-  是否启用`focus_tip`。可选，默认false。
+  是否启用`focus_tip` 、`focus_succeeded`、 `focus_failed`。可选，默认false。
 - `focus_tip` : *string* | *list<string, >*  
-  当执行某任务时，在MFA右侧日志输出的内容。可选，默认空。
+  当执行某任务前，在MFA右侧日志输出的内容。可选，默认空。
 - `focus_tip_color` : *string* | *list<string, >*  
-  当执行某任务时，在MFA右侧日志输出的内容的颜色。可选，默认为Gray。
-
+  当执行某任务前，在MFA右侧日志输出的内容的颜色。可选，默认为Gray。
+- `focus_succeeded` : *string* | *list<string, >*  
+  当执行某任务成功后，在MFA右侧日志输出的内容。可选，默认空。
+- `focus_succeeded_color` : *string* | *list<string, >*  
+  当执行某任务成功后，在MFA右侧日志输出的内容的颜色。可选，默认为Gray。
+- `focus_failed` : *string* | *list<string, >*  
+  当执行某任务失败时，在MFA右侧日志输出的内容。可选，默认空。
+- `focus_failed_color` : *string* | *list<string, >*  
+  当执行某任务失败时，在MFA右侧日志输出的内容的颜色。可选，默认为Gray。
 ## 致谢
 
 ### 开源库
@@ -138,7 +146,7 @@
 - [MaaFramework](https://github.com/MaaAssistantArknights/MaaFramework)：自动化测试框架
 - [MaaFramework.Binding.CSharp](https://github.com/MaaXYZ/MaaFramework.Binding.CSharp)：MaaFramework 的 C# 包装
 - [HandyControls](https://github.com/ghost1372/HandyControls)：C# WPF 控件库
-- [NLog](https://github.com/NLog/NLog)：C# 日志记录库
+- [Serilog](https://github.com/serilog/serilog)：C# 日志记录库
 - [Newtonsoft.Json](https://github.com/CommunityToolkit/dotnet)：C# JSON 库
 
 ## 画大饼

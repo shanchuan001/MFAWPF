@@ -21,8 +21,12 @@
     <PackageReference Include="CalcBinding" Version="2.5.2" />
     <PackageReference Include="Lierda.WPFHelper" Version="1.0.3" />
     <PackageReference Include="Maa.Framework.Native" Version="2.3.1" />
-    <PackageReference Include="Maa.Framework.Runtime.win-arm64" Version="2.3.1" />
+    <PackageReference Include="Maa.Framework.Runtime.win-arm64" Version="2.4.1" />
+	<PackageReference Include="Maa.Framework.Runtime.win-x64" Version="2.4.1" />
+
   </ItemGroup>
+
+ 
     <!-- Info -->
     <PropertyGroup>
         <ApplicationIcon>logo.ico</ApplicationIcon>
@@ -34,19 +38,17 @@
     </PropertyGroup>
 	
     <!-- Ignore Warings -->
-  <PropertyGroup>
-    <NoWarn>NU1602;NU1701;CS0169;CS0612;CS0618;CS1998;CS4014;CS8618;CS8601;CS8602;CS8603</NoWarn>
-  </PropertyGroup>
-	<PropertyGroup>
-		<UICulture>zh-hans</UICulture>
-	</PropertyGroup>
+	  <PropertyGroup>
+		<NoWarn>NU1602;NU1701;CS0169;CS0612;CS0618;CS1998;CS4014;CS8618;CS8601;CS8602;CS8603;CS8604</NoWarn>
+	  </PropertyGroup>
+	  
     <!-- Version -->
     <PropertyGroup>
         <ApplicationRevision>0</ApplicationRevision>
         <ApplicationVersion>1.1.0</ApplicationVersion>
         <Version>1.1</Version>
         <FileVersion>0.0.1</FileVersion>
-        <AssemblyVersion>1.2.3.1</AssemblyVersion>
+        <AssemblyVersion>1.2.3.6</AssemblyVersion>
         <InformationalVersion>0.0.1</InformationalVersion>
     </PropertyGroup>
   
@@ -58,6 +60,7 @@
         <PublishSingleFile>true</PublishSingleFile>
         <PublishTrimmed>false</PublishTrimmed>
         <SelfContained>false</SelfContained>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     </PropertyGroup>
@@ -68,17 +71,16 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
-  
+
     <ItemGroup>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
         <PackageReference Include="gong-wpf-dragdrop" Version="4.0.0" />
         <PackageReference Include="GraphSharp" Version="1.1.0" />
         <PackageReference Include="HandyControls" Version="3.5.3" />
-        <PackageReference Include="Maa.Framework.Runtime.win-x64" Version="2.3.1" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-        <PackageReference Include="NLog" Version="5.3.4" />
-        <PackageReference Include="NLog.Config" Version="4.7.15" />
-        <PackageReference Include="NLog.Schema" Version="5.3.4" />
+        <PackageReference Include="Serilog" Version="4.2.0" />
+        <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
         <PackageReference Include="System.CodeDom" Version="9.0.0" />
         <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
         <PackageReference Include="System.Management" Version="9.0.0" />
@@ -89,6 +91,7 @@
         <None Remove="Assets\Icons\logo.ico" />
         <None Remove="Assets\Icons\maa-logo_128x128.png" />
         <None Remove="obj\**" />
+        <None Remove="C:\Users\Fox\.nuget\packages\nlog.config\4.7.15\contentFiles\any\any\NLog.config" />
     </ItemGroup>
 
     <ItemGroup>
@@ -261,12 +264,12 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="docs\" />
         <Folder Include="obj\Debug\Styles\Style\" />
         <Folder Include="obj\Release\Assets\Icons\" />
         <Folder Include="obj\Release\Styles\Primary\" />
         <Folder Include="obj\Release\Styles\Style\" />
         <Folder Include="obj\Release\Styles\Theme\" />
+        <Folder Include="Resource\base\" />
     </ItemGroup>
 
     <ItemGroup>
@@ -340,5 +343,6 @@
       <Resource Include="logo.ico">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Resource>
+      <None Remove="NLog.config" />
     </ItemGroup>
 </Project>

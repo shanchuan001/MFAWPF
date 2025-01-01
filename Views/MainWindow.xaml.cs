@@ -23,6 +23,7 @@ using MFAWPF.ViewModels;
 using Microsoft.Win32;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.ComponentModel;
 using System.Text;
 using WPFLocalizeExtension.Extensions;
 using ComboBox = HandyControl.Controls.ComboBox;
@@ -57,7 +58,7 @@ public partial class MainWindow
         Loaded += (_, _) => { LoadUI(); };
         InitializeData();
         OCRHelper.Initialize();
-        VersionChecker.CheckVersion();
+
         _maaToolkit = new MaaToolkit(init: true);
         MaaProcessor.Instance.TaskStackChanged += OnTaskStackChanged;
         SetIconFromExeDirectory();
@@ -65,7 +66,7 @@ public partial class MainWindow
 
     private void SetIconFromExeDirectory()
     {
-        string exeDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        string exeDirectory = AppContext.BaseDirectory;
         string iconPath = Path.Combine(exeDirectory, "logo.ico");
 
         if (File.Exists(iconPath))
@@ -76,28 +77,33 @@ public partial class MainWindow
 
     private bool InitializeData()
     {
-        if (!File.Exists($"{AppDomain.CurrentDomain.BaseDirectory}/interface.json"))
+        if (!File.Exists($"{AppContext.BaseDirectory}/interface.json"))
         {
             LoggerService.LogInfo("未找到interface文件，生成interface.json...");
             MaaInterface.Instance = new MaaInterface
                 {
                     Version = "1.0",
                     Name = "Debug",
-                    Task = new List<TaskInterfaceItem>(),
-                    Resource = new List<MaaInterface.MaaCustomResource>
-                    {
-                        new()
+                    Task = [],
+                    Resource =
+                    [
+                        new MaaInterface.MaaCustomResource
                         {
                             Name = "默认",
                             Path =
                             [
-                                "{PROJECT_DIR}/resource/base"
-                            ]
-
-                        }
-                    },
-                    Recognition = new Dictionary<string, MaaInterface.CustomExecutor>(),
-                    Action = new Dictionary<string, MaaInterface.CustomExecutor>(),
+                                "{PROJECT_DIR}/resource/base",
+                            ],
+                        },
+                    ],
+                    Controller =
+                    [
+                        new MaaInterface.MaaResourceController()
+                        {
+                            Name = "adb 默认方式",
+                            Type = "adb"
+                        },
+                    ],
                     Option = new Dictionary<string, MaaInterface.MaaInterfaceOption>
                     {
                         {
@@ -122,13 +128,13 @@ public partial class MainWindow
                     }
                 }
                 ;
-            JsonHelper.WriteToJsonFilePath(AppDomain.CurrentDomain.BaseDirectory, "interface",
+            JsonHelper.WriteToJsonFilePath(AppContext.BaseDirectory, "interface",
                 MaaInterface.Instance, new MaaInterfaceSelectOptionConverter(true));
         }
         else
         {
             MaaInterface.Instance =
-                JsonHelper.ReadFromJsonFilePath(AppDomain.CurrentDomain.BaseDirectory, "interface",
+                JsonHelper.ReadFromJsonFilePath(AppContext.BaseDirectory, "interface",
                     new MaaInterface(),
                     () => { }, new MaaInterfaceSelectOptionConverter(false));
         }
@@ -204,6 +210,12 @@ public partial class MainWindow
         });
     }
 
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        e.Cancel = !ConfirmExit();
+        base.OnClosed(e);
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
@@ -239,6 +251,8 @@ public partial class MainWindow
             {
                 foreach (var resourcePath in MaaProcessor.CurrentResources)
                 {
+                    if (!Path.Exists($"{resourcePath}/pipeline/"))
+                        break;
                     var jsonFiles = Directory.GetFiles($"{resourcePath}/pipeline/", "*.json");
                     var taskDictionaryA = new Dictionary<string, TaskModel>();
                     foreach (var file in jsonFiles)
@@ -251,7 +265,7 @@ public partial class MainWindow
                         {
                             if (!taskDictionaryA.TryAdd(task.Key, task.Value))
                             {
-                                Growls.ErrorGlobal(string.Format(
+                                Growls.Error(string.Format(
                                     LocExtension.GetLocalizedValue<string>("DuplicateTaskError"), task.Key));
                                 return false;
                             }
@@ -264,12 +278,12 @@ public partial class MainWindow
 
             if (taskDictionary.Count == 0)
             {
-                string? directoryPath = Path.GetDirectoryName($"{MaaProcessor.ResourceBase}/pipeline");
-                if (!string.IsNullOrWhiteSpace(directoryPath) && !Directory.Exists(directoryPath))
+
+                if (!string.IsNullOrWhiteSpace($"{MaaProcessor.ResourceBase}/pipeline") && !Directory.Exists($"{MaaProcessor.ResourceBase}/pipeline"))
                 {
                     try
                     {
-                        Directory.CreateDirectory(directoryPath);
+                        Directory.CreateDirectory($"{MaaProcessor.ResourceBase}/pipeline");
                     }
                     catch (Exception ex)
                     {
@@ -312,7 +326,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Growls.ErrorGlobal(string.Format(LocExtension.GetLocalizedValue<string>("PipelineLoadError"),
+            Growls.Error(string.Format(LocExtension.GetLocalizedValue<string>("PipelineLoadError"),
                 ex.Message));
             Console.WriteLine(ex);
             LoggerService.LogError(ex);
@@ -348,7 +362,7 @@ public partial class MainWindow
             {
                 if (!taskDictionary.ContainsKey(task))
                 {
-                    Growls.ErrorGlobal(string.Format(LocExtension.GetLocalizedValue<string>("TaskNotFoundError"),
+                    Growls.Error(string.Format(LocExtension.GetLocalizedValue<string>("TaskNotFoundError"),
                         name, task));
                 }
             }
@@ -380,9 +394,10 @@ public partial class MainWindow
         }
     }
 
-    public void Start(object? sender, RoutedEventArgs? e)
+    public void Start(object? sender, RoutedEventArgs? e) => Start();
+
+    public void Start(bool onlyStart = false)
     {
-        Console.WriteLine("正在启动！");
         if (Data?.Idle == false)
         {
             Growls.Warning("CannotStart".GetLocalizationString());
@@ -393,11 +408,13 @@ public partial class MainWindow
             MaaProcessor.Money = 0;
             var tasks = Data?.TaskItemViewModels.ToList().FindAll(task => task.IsChecked);
             ConnectToMAA();
-            MaaProcessor.Instance.Start(tasks);
+            MaaProcessor.Instance.Start(tasks, onlyStart);
         }
     }
 
-    public void Stop(object? sender, RoutedEventArgs? e)
+    public void Stop(object? sender, RoutedEventArgs? e) => Stop();
+
+    public void Stop()
     {
         MaaProcessor.Instance.Stop();
     }
@@ -425,6 +442,7 @@ public partial class MainWindow
         {
             Growl.Info(string.Format(LocExtension.GetLocalizedValue<string>("WindowSelectionMessage"),
                 window.Name));
+            MaaProcessor.Config.DesktopWindow.Name = window.Name;
             MaaProcessor.Config.DesktopWindow.HWnd = window.Handle;
             MaaProcessor.Instance.SetCurrentTasker();
         }
@@ -460,7 +478,7 @@ public partial class MainWindow
                 dialog.Output
             };
             deviceComboBox.SelectedIndex = 0;
-            MaaProcessor.Config.IsConnected = true;
+            SetConnected(true);
         }
     }
 
@@ -506,13 +524,14 @@ public partial class MainWindow
             Growl.Info((Data?.IsAdb).IsTrue()
                 ? LocExtension.GetLocalizedValue<string>("EmulatorDetectionStarted")
                 : LocExtension.GetLocalizedValue<string>("WindowDetectionStarted"));
-            MaaProcessor.Config.IsConnected = false;
+            SetConnected(false);
             if ((Data?.IsAdb).IsTrue())
             {
                 var devices = await _maaToolkit.AdbDevice.FindAsync();
                 deviceComboBox.ItemsSource = devices;
-                MaaProcessor.Config.IsConnected = devices.Count > 0;
+                SetConnected(devices.Count > 0);
                 var emulatorConfig = DataSet.GetData("EmulatorConfig", string.Empty);
+                var resultIndex = 0;
                 if (!string.IsNullOrWhiteSpace(emulatorConfig))
                 {
                     var extractedNumber = ExtractNumberFromEmulatorConfig(emulatorConfig);
@@ -523,14 +542,16 @@ public partial class MainWindow
                         {
                             if (index == extractedNumber)
                             {
-                                deviceComboBox.SelectedIndex = devices.IndexOf(device);
+                                resultIndex = devices.IndexOf(device);
+                                break;
                             }
                         }
-                        else deviceComboBox.SelectedIndex = 0;
+                        else resultIndex = 0;
                     }
                 }
                 else
-                    deviceComboBox.SelectedIndex = 0;
+                    resultIndex = 0;
+                deviceComboBox.SelectedIndex = resultIndex;
                 if (MaaInterface.Instance?.Controller != null)
                 {
                     if (MaaInterface.Instance.Controller.Any(controller => controller.Type != null && controller.Type.ToLower().Equals("adb")))
@@ -592,8 +613,8 @@ public partial class MainWindow
             {
                 var windows = _maaToolkit.Desktop.Window.Find().ToList();
                 deviceComboBox.ItemsSource = windows;
-                MaaProcessor.Config.IsConnected = windows.Count > 0;
-                deviceComboBox.SelectedIndex = windows.Count > 0
+                SetConnected(windows.Count > 0);
+                var resultIndex = windows.Count > 0
                     ? windows.ToList().FindIndex(win => !string.IsNullOrWhiteSpace(win.Name))
                     : 0;
                 if (MaaInterface.Instance?.Controller != null)
@@ -604,11 +625,12 @@ public partial class MainWindow
                         if (win32Controller?.Win32 != null)
                         {
                             var filteredWindows = windows.Where(win => !string.IsNullOrWhiteSpace(win.Name) || !string.IsNullOrWhiteSpace(win.ClassName)).ToList();
+
                             if (!string.IsNullOrWhiteSpace(win32Controller.Win32.WindowRegex))
                             {
                                 var windowRegex = new Regex(win32Controller.Win32.WindowRegex);
                                 filteredWindows = filteredWindows.Where(win => windowRegex.IsMatch(win.Name)).ToList();
-                                deviceComboBox.SelectedIndex = filteredWindows.Count > 0
+                                resultIndex = filteredWindows.Count > 0
                                     ? windows.FindIndex(win => win.Name.Equals(filteredWindows.First().Name))
                                     : 0;
                             }
@@ -617,7 +639,7 @@ public partial class MainWindow
                             {
                                 var classRegex = new Regex(win32Controller.Win32.ClassRegex);
                                 var filteredWindowsByClass = filteredWindows.Where(win => classRegex.IsMatch(win.ClassName)).ToList();
-                                deviceComboBox.SelectedIndex = filteredWindowsByClass.Count > 0
+                                resultIndex = filteredWindowsByClass.Count > 0
                                     ? windows.FindIndex(win => win.ClassName.Equals(filteredWindowsByClass.First().ClassName))
                                     : 0;
                             }
@@ -656,9 +678,10 @@ public partial class MainWindow
                         }
                     }
                 }
+                deviceComboBox.SelectedIndex = resultIndex;
             }
 
-            if (!MaaProcessor.Config.IsConnected)
+            if (!IsConnected())
             {
                 Growl.Info((Data?.IsAdb).IsTrue()
                     ? LocExtension.GetLocalizedValue<string>("NoEmulatorFound")
@@ -667,10 +690,10 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            Growls.WarningGlobal(string.Format(LocExtension.GetLocalizedValue<string>("TaskStackError"),
+            Growls.Warning(string.Format(LocExtension.GetLocalizedValue<string>("TaskStackError"),
                 (Data?.IsAdb).IsTrue() ? "Emulator".GetLocalizationString() : "Window".GetLocalizationString(),
                 ex.Message));
-            MaaProcessor.Config.IsConnected = false;
+            SetConnected(false);
             LoggerService.LogError(ex);
             Console.WriteLine(ex);
         }
@@ -866,7 +889,16 @@ public partial class MainWindow
                 CommandParameter = resourceLink
             });
         }
-
+        settingsView.MFAShieldTextBlock.Text = Version;
+        var resourceVersion = MaaInterface.Instance?.Version;
+        if (!string.IsNullOrWhiteSpace(resourceVersion))
+        {
+            settingsView.ResourceShieldTextBlock.Text = resourceVersion;
+        }
+        else
+        {
+            settingsView.ResourceShield.Visibility = Visibility.Collapsed;
+        }
         settingsView.settingStackPanel.Children.Add(s1);
         settingsView.settingStackPanel.Children.Add(s2);
     }
@@ -994,6 +1026,7 @@ public partial class MainWindow
             Source = Data,
             Mode = BindingMode.OneWay
         };
+
         comboBox.SetBinding(IsEnabledProperty, binding);
         comboBox.BindLocalization("LanguageOption");
         comboBox.SetValue(TitleElement.TitlePlacementProperty, TitlePlacementType.Top);
@@ -1074,6 +1107,50 @@ public partial class MainWindow
             var text = (sender as TextBox)?.Text ?? string.Empty;
             DataSet.SetData("EmulatorConfig", text);
         };
+
+        textBox.PreviewDragOver += File_Drop;
+
+        // var comboBox = new ComboBox
+        // {
+        //     Style = FindResource("ComboBoxExtend") as Style,
+        //     Margin = new Thickness(5),
+        //     DisplayMemberPath = "Name",
+        //     ItemsSource = new List<SettingViewModel>
+        //     {
+        //         new("General"),
+        //         new("BlueStacks"),
+        //         new("MuMuEmulator12"),
+        //         new("LDPlayer"),
+        //         new("Nox"),
+        //         new("XYAZ"),
+        //     }
+        // };
+        // var cBinding = new CalcBinding.Binding
+        // {
+        //     Path = "IsAdb",
+        //     Source = Data,
+        // };
+        // comboBox.ItemsSource = LanguageManager.SupportedLanguages;
+        //
+        // var binding = new Binding("Idle")
+        // {
+        //     Source = Data,
+        //     Mode = BindingMode.OneWay
+        // };
+        //
+        // comboBox.SetBinding(IsEnabledProperty, binding);
+        // comboBox.BindLocalization("LanguageOption");
+        // comboBox.SetValue(TitleElement.TitlePlacementProperty, TitlePlacementType.Top);
+        //
+        // comboBox.SelectionChanged += (sender, _) =>
+        // {
+        //     if ((sender as ComboBox)?.SelectedItem is LanguageManager.SupportedLanguage language)
+        //         LanguageManager.ChangeLanguage(language);
+        //     DataSet.SetData("ConnectEmulatorMode", (sender as ComboBox)?.SelectedIndex ?? 0);
+        // };
+        //
+        // comboBox.SelectedIndex = DataSet.GetData("ConnectEmulatorMode", "General");
+        // panel.Children.Add(comboBox);
         panel.Children.Add(textBox);
     }
 
@@ -1496,7 +1573,7 @@ public partial class MainWindow
 
     private void Edit(object sender, RoutedEventArgs e)
     {
-        if (!MaaProcessor.Config.IsConnected)
+        if (!IsConnected())
         {
             Growls.Warning(
                 "Warning_CannotConnect".GetLocalizedFormattedString((Data?.IsAdb).IsTrue()
@@ -1688,7 +1765,7 @@ public partial class MainWindow
             InitializationSettings();
             ConnectionTabControl.SelectedIndex = MaaInterface.Instance?.DefaultController == "win32" ? 1 : 0;
             ConfigureTaskSettingsPanel();
-            if (DataSet.GetData("AutoStartIndex", 0) == 1)
+            if (DataSet.GetData("AutoStartIndex", 0) >= 1)
             {
                 MaaProcessor.Instance.TaskQueue.Push(new MFATask
                 {
@@ -1696,7 +1773,30 @@ public partial class MainWindow
                     Type = MFATask.MFATaskType.MFA,
                     Action = WaitSoftware,
                 });
-                Start(null, null);
+                Start(DataSet.GetData("AutoStartIndex", 0) == 1);
+            }
+            else
+            {
+                if (Data?.IsAdb == true && DataSet.GetData("RememberAdb", true) && "adb".Equals(MaaProcessor.Config.AdbDevice.AdbPath) && DataSet.TryGetData<JObject>("AdbDevice", out var jObject))
+                {
+                    var settings = new JsonSerializerSettings();
+                    settings.Converters.Add(new AdbInputMethodsConverter());
+                    settings.Converters.Add(new AdbScreencapMethodsConverter());
+
+                    var device = jObject?.ToObject<AdbDeviceInfo>(JsonSerializer.Create(settings));
+                    if (device != null)
+                    {
+                        Growls.Process(() =>
+                        {
+                            deviceComboBox.ItemsSource = new List<AdbDeviceInfo>
+                            {
+                                device
+                            };
+                            deviceComboBox.SelectedIndex = 0;
+                            SetConnected(true);
+                        });
+                    }
+                }
             }
             ConnectionTabControl.SelectionChanged += ConnectionTabControlOnSelectionChanged;
             if (Data != null)
@@ -1711,13 +1811,13 @@ public partial class MainWindow
             {
                 Growl.Info(MaaInterface.Instance.Message);
             }
-
+            VersionChecker.Check();
         });
     }
 
     public static void AppendVersionLog(string? resourceVersion)
     {
-        string debugFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "debug");
+        string debugFolderPath = Path.Combine(AppContext.BaseDirectory, "debug");
         if (!Directory.Exists(debugFolderPath))
         {
             Directory.CreateDirectory(debugFolderPath);
@@ -1747,12 +1847,12 @@ public partial class MainWindow
     {
         Topmost = e.NewValue;
     }
+
     public static void AddLog(string content,
         string? color = "",
         string weight = "Regular",
         bool showTime = true)
     {
-
         Data?.AddLog(content, color, weight, showTime);
     }
 
@@ -1939,7 +2039,7 @@ public partial class MainWindow
             }
         }
 
-
+        //连接设置
         SetSettingOption(settingsView.adbCaptureComboBox, "CaptureModeOption",
             [
                 "Default", "RawWithGzip", "RawByNetcat",
@@ -1950,7 +2050,7 @@ public partial class MainWindow
         SetBindSettingOption(settingsView.adbInputComboBox, "InputModeOption",
             ["MiniTouch", "MaaTouch", "AdbInput", "AutoDetect"],
             "AdbControlInputType");
-        
+
         SetRememberAdbOption(settingsView.rememberAdbButton);
 
         SetSettingOption(settingsView.win32CaptureComboBox, "CaptureModeOption",
@@ -1990,16 +2090,26 @@ public partial class MainWindow
                 RestartMFA();
             }
         };
+        //软件更新
+        settingsView.enableCheckVersionSettings.IsChecked = DataSet.GetData("EnableCheckVersion", true);
+        settingsView.enableCheckVersionSettings.Click += (_, _) => { DataSet.SetData("EnableCheckVersion", settingsView.enableCheckVersionSettings.IsChecked); };
+
+        settingsView.enableAutoUpdateResourceSettings.IsChecked = DataSet.GetData("EnableAutoUpdateResource", false);
+        settingsView.enableAutoUpdateResourceSettings.Click += (_, _) => { DataSet.SetData("EnableAutoUpdateResource", settingsView.enableAutoUpdateResourceSettings.IsChecked); };
+
+        settingsView.enableAutoUpdateMFASettings.IsChecked = DataSet.GetData("EnableAutoUpdateMFA", false);
+        settingsView.enableAutoUpdateMFASettings.Click += (_, _) => { DataSet.SetData("EnableAutoUpdateMFA", settingsView.enableAutoUpdateMFASettings.IsChecked); };
+        //关于我们
         AddAbout();
     }
+
     private void ConfigureTaskSettingsPanel(object? sender = null, RoutedEventArgs? e = null)
     {
         settingPanel.Children.Clear();
-        StackPanel
-            s2 = new()
-            {
-                Margin = new Thickness(2)
-            };
+        StackPanel s2 = new()
+        {
+            Margin = new Thickness(2)
+        };
 
         AddAutoStartOption(s2);
         AddAfterTaskOption(s2);
@@ -2008,16 +2118,16 @@ public partial class MainWindow
         AddStartEmulatorOption(s2);
 
 
-        ScrollViewer
-            sv2 = new()
-            {
-                Content = s2,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Stretch
-            };
+        ScrollViewer sv2 = new()
+        {
+            Content = s2,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
         settingPanel.Children.Add(sv2);
     }
+
     public async void WaitSoftware()
     {
         if (DataSet.GetData("AutoStartIndex", 0) >= 1)
@@ -2041,11 +2151,49 @@ public partial class MainWindow
                         device
                     };
                     deviceComboBox.SelectedIndex = 0;
-                    MaaProcessor.Config.IsConnected = true;
+                    SetConnected(true);
                 });
             }
         }
         else
             Growls.Process(AutoDetectDevice);
+    }
+    public bool IsConnected()
+    {
+        return (Data?.IsConnected).IsTrue();
+    }
+
+    public void SetConnected(bool isConnected)
+    {
+        if (Data == null) return;
+        Data.IsConnected = isConnected;
+    }
+
+    public void SetUpdating(bool isUpdating)
+    {
+        if (Data == null) return;
+        Data.IsUpdating = isUpdating;
+    }
+
+    public bool ConfirmExit()
+    {
+        if (!Data.IsRunning)
+            return true;
+        var result = MessageBoxHelper.Show("ConfirmExitText".GetLocalizationString(),
+            "ConfirmExitTitle".GetLocalizationString(), buttons: MessageBoxButton.YesNo, icon: MessageBoxImage.Question);
+        return result == MessageBoxResult.Yes;
+    }
+
+    private void File_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            return;
+        }
+
+        // Note that you can have more than one file.
+        var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+        if (sender is TextBox textBox)
+            textBox.Text = files?[0] ?? string.Empty;
     }
 }

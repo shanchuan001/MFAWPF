@@ -137,6 +137,22 @@ public class MainViewModel : ObservableObject
         set => SetProperty(ref _isAdb, value);
     }
 
+    private bool _isConnected;
+
+    public bool IsConnected
+    {
+        get => _isConnected;
+        set => SetProperty(ref _isConnected, value);
+    }
+
+    private bool _isUpdating;
+
+    public bool IsUpdating
+    {
+        get => _isUpdating;
+        set => SetProperty(ref _isUpdating, value);
+    }
+
     private bool _isVisible = true;
 
     public bool IsVisible
@@ -303,6 +319,7 @@ public class MainViewModel : ObservableObject
         new("ConnectionSettings"),
         new("PerformanceSettings"),
         new("RunningSettings"),
+        new("SoftwareUpdate"),
         new("About"),
     ];
 
@@ -360,6 +377,7 @@ public class MainViewModel : ObservableObject
     private List<SettingViewModel> _beforeTaskList =
     [
         new("None"),
+        new("StartupSoftware"),
         new("StartupSoftwareAndScript"),
     ];
 
@@ -378,7 +396,7 @@ public class MainViewModel : ObservableObject
         new("CloseEmulatorAndMFA"),
         new("ShutDown"),
         new("CloseEmulatorAndRestartMFA"),
-        new("Restart"),
+        new("RestartPC"),
         new("DingTalkMessageAsync"),
     ];
 
@@ -386,5 +404,123 @@ public class MainViewModel : ObservableObject
     {
         get => _afterTaskList;
         set => SetProperty(ref _listTitle, value);
+    }
+
+    public static string FormatFileSize(long size)
+    {
+        string unit;
+        double value;
+        if (size >= 1024L * 1024 * 1024 * 1024)
+        {
+            value = (double)size / (1024L * 1024 * 1024 * 1024);
+            unit = "TB";
+        }
+        else if (size >= 1024 * 1024 * 1024)
+        {
+            value = (double)size / (1024 * 1024 * 1024);
+            unit = "GB";
+        }
+        else if (size >= 1024 * 1024)
+        {
+            value = (double)size / (1024 * 1024);
+            unit = "MB";
+        }
+        else if (size >= 1024)
+        {
+            value = (double)size / 1024;
+            unit = "KB";
+        }
+        else
+        {
+            value = size;
+            unit = "B";
+        }
+
+        return $"{value:F} {unit}";
+    }
+
+    public static string FormatDownloadSpeed(double speed)
+    {
+        string unit;
+        double value = speed;
+        if (value >= 1024L * 1024 * 1024 * 1024)
+        {
+            value /= 1024L * 1024 * 1024 * 1024;
+            unit = "TB/s";
+        }
+        else if (value >= 1024L * 1024 * 1024)
+        {
+            value /= 1024L * 1024 * 1024;
+            unit = "GB/s";
+        }
+        else if (value >= 1024 * 1024)
+        {
+            value /= 1024 * 1024;
+            unit = "MB/s";
+        }
+        else if (value >= 1024)
+        {
+            value /= 1024;
+            unit = "KB/s";
+        }
+        else
+        {
+            unit = "B/s";
+        }
+
+        return $"{value:F} {unit}";
+    }
+    public void OutputDownloadProgress(long value = 0, long maximum = 1, int len = 0, double ts = 1)
+    {
+        string sizeValueStr = FormatFileSize(value);
+        string maxSizeValueStr = FormatFileSize(maximum);
+        string speedValueStr = FormatDownloadSpeed(len / ts);
+
+        string progressInfo = $"[{sizeValueStr}/{maxSizeValueStr}({100 * value / maximum}%) {speedValueStr}]";
+        OutputDownloadProgress(progressInfo);
+    }
+
+    public void ClearDownloadProgress()
+    {
+        Growls.Process(() =>
+        {
+
+            if (LogItemViewModels.Count > 0 && LogItemViewModels[0].IsDownloading)
+            {
+                LogItemViewModels.RemoveAt(0);
+            }
+        });
+    }
+
+    public void OutputDownloadProgress(string output, bool downloading = true)
+    {
+        if (LogItemViewModels == null)
+        {
+            return;
+        }
+
+        Growls.Process(() =>
+        {
+            var log = new LogItemViewModel(downloading ? "NewVersionFoundDescDownloading".GetLocalizationString() + "\n" + output : output, Application.Current.MainWindow.FindResource("DownloadLogBrush") as Brush,
+                dateFormat: "HH':'mm':'ss")
+            {
+                IsDownloading = true,
+            };
+            if (LogItemViewModels.Count > 0 && LogItemViewModels[0].IsDownloading)
+            {
+                if (!string.IsNullOrEmpty(output))
+                {
+                    LogItemViewModels[0] = log;
+                }
+                else
+                {
+                    LogItemViewModels.RemoveAt(0);
+                }
+            }
+            else if (!string.IsNullOrEmpty(output))
+            {
+                LogItemViewModels.Insert(0, log);
+            }
+        });
     }
 }

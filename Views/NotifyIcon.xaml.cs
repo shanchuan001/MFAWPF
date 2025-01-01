@@ -1,8 +1,6 @@
 using MFAWPF.Data;
 using MFAWPF.Utils;
 using MFAWPF.ViewModels;
-using NLog;
-using NLog.Fluent;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -90,17 +88,18 @@ public partial class NotifyIcon
 
     private static void StartTask(object sender, RoutedEventArgs e)
     {
-        MainWindow.Instance?.Start(null, null);
+        MainWindow.Instance.Start();
     }
 
     private static void StopTask(object sender, RoutedEventArgs e)
     {
-        MainWindow.Instance?.Stop(null, null);
+        MainWindow.Instance.Stop();
     }
 
     private static void App_exit(object sender, RoutedEventArgs e)
     {
-        Application.Current.Shutdown();
+        if (MainWindow.Instance.ConfirmExit())
+            Application.Current.Shutdown();
     }
 
     private void App_hide(object sender, RoutedEventArgs e)

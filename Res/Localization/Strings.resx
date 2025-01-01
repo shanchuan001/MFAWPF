@@ -357,7 +357,7 @@
   <data name="About" xml:space="preserve">
     <value>关于我们</value>
   </data>
-    <data name="ScreenshotTime" xml:space="preserve">
+    <data name="ScreencapCost" xml:space="preserve">
     <value>截图耗时: {0}ms({1})</value>
   </data>
     <data name="Error" xml:space="preserve">
@@ -456,8 +456,8 @@
   <data name="WaitSoftware" xml:space="preserve">
     <value>等待软件启动时间(秒)</value>
   </data>
-  <data name="StartEmulator" xml:space="preserve">
-    <value>启动MFA后启动软件</value>
+  <data name="StartupSoftware" xml:space="preserve">
+    <value>启动软件</value>
   </data>
     <data name="Select" xml:space="preserve">
     <value>选择</value>
@@ -469,7 +469,7 @@
     <value>选择可运行文件</value>
   </data>
   <data name="WaitSoftwareTime" xml:space="preserve">
-    <value>等待软件启动时间(秒): {0}(s)</value>
+    <value>等待{0}启动时间(秒): {1}(s)</value>
   </data>
     <data name="ProjectLink" xml:space="preserve">
     <value>项目链接: </value>
@@ -498,8 +498,8 @@
   <data name="CloseEmulatorAndRestartMFA" xml:space="preserve">
     <value>重启MFA和关闭软件</value>
   </data>
-    <data name="Restart" xml:space="preserve">
-    <value>重启系统</value>
+  <data name="Restart" xml:space="preserve">
+    <value>重新启动</value>
   </data>
     <data name="AdbConfig" xml:space="preserve">
     <value>额外参数</value>
@@ -566,5 +566,122 @@
   </data>
   <data name="ConnectionSettings" xml:space="preserve">
     <value>连接设置</value>
+  </data>
+  <data name="SoftwareUpdate" xml:space="preserve">
+    <value>软件更新</value>
+  </data>
+  <data name="AutomaticDetectionUpdate" xml:space="preserve">
+    <value>自动检测更新</value>
+  </data>
+  <data name="Connected" xml:space="preserve">
+    <value>已连接</value>
+  </data>
+  <data name="Unconnected" xml:space="preserve">
+    <value>未连接</value>
+  </data>
+  <data name="UpdateResource" xml:space="preserve">
+    <value>资源更新</value>
+  </data>
+  <data name="CheckResource" xml:space="preserve">
+    <value>检查资源</value>
+  </data>
+  <data name="GettingLatestResources" xml:space="preserve">
+    <value>正在获取最新资源.....</value>
+  </data>
+  <data name="FailToGetLatestVersionInfo" xml:space="preserve">
+    <value>获取最新版本信息失败，无法更新。</value>
+  </data>
+  <data name="FailToGetDownloadUrl" xml:space="preserve">
+    <value>无法获取资源下载链接，更新失败。</value>
+  </data>
+  <data name="Downloading" xml:space="preserve">
+    <value>下载中.....</value>
+  </data>
+  <data name="ApplyingUpdate" xml:space="preserve">
+    <value>正在应用更新.....</value>
+  </data>
+  <data name="UpdateCompleted" xml:space="preserve">
+    <value>更新完成</value>
+  </data>
+  <data name="ResourcesAreLatestVersion" xml:space="preserve">
+    <value>资源已为最新版本！</value>
+  </data>
+  <data name="NewVersionAvailableLatestVersion" xml:space="preserve">
+    <value>有新版本可用！最新版本:</value>
+  </data>
+  <data name="FailToGetCurrentVersionInfo" xml:space="preserve">
+    <value>获取当前版本信息失败，无法更新。</value>
+  </data>
+  <data name="RestartPC" xml:space="preserve">
+    <value>重启电脑</value>
+  </data>
+  <data name="Update" xml:space="preserve">
+    <value>更新</value>
+  </data>
+  <data name="AutomaticUpdateResource" xml:space="preserve">
+    <value>自动更新资源</value>
+  </data>
+  <data name="AutomaticUpdateMFA" xml:space="preserve">
+    <value>自动更新软件</value>
+  </data>
+  <data name="MFAIsLatestVersion" xml:space="preserve">
+    <value>软件已为最新版本！</value>
+  </data>
+  <data name="SoftwareVersion" xml:space="preserve">
+    <value>软件版本</value>
+  </data>
+  <data name="NewVersionFoundDescDownloading" xml:space="preserve">
+    <value>正在后台下载……</value>
+  </data>
+  <data name="NewVersionDownloadCompletedTitle" xml:space="preserve">
+    <value>新版本下载完成</value>
+  </data>
+  <data name="GameResourceUpdated" xml:space="preserve">
+    <value>游戏资源已更新，请重启软件。</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>是</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>否</value>
+  </data>
+  <data name="Tip" xml:space="preserve">
+    <value>提示</value>
+  </data>
+  <data name="Ok" xml:space="preserve">
+    <value>好的</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>确认</value>
+  </data>
+  <data name="ConfirmExitText" xml:space="preserve">
+    <value>确定要退出吗？</value>
+  </data>
+  <data name="ConfirmExitTitle" xml:space="preserve">
+    <value>MFA 正在运行任务</value>
+  </data>
+  <data name="GettingLatestSoftware" xml:space="preserve">
+    <value>正在获取最新软件.....</value>
+  </data>
+  <data name="General" xml:space="preserve">
+    <value>通用模式</value>
+  </data>
+  <data name="BlueStacks" xml:space="preserve">
+    <value>蓝叠模拟器</value>
+  </data>
+  <data name="MuMuEmulator12" xml:space="preserve">
+    <value>MuMu模拟器12</value>
+  </data>
+  <data name="LDPlayer" xml:space="preserve">
+    <value>雷电模拟器</value>
+  </data>
+  <data name="Nox" xml:space="preserve">
+    <value>夜神模拟器</value>
+  </data>
+  <data name="ScreencapWarningTip" xml:space="preserve">
+    <value>截图用时较长: {0}ms({1})</value>
+  </data>
+  <data name="ScreencapErrorTip" xml:space="preserve">
+    <value>截图用时过长: {0}ms({1})</value>
   </data>
 </root>
